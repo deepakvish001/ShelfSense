@@ -7,6 +7,7 @@ from pathlib import Path
 
 from app.catalog import Product, normalize_sku
 from app.inventory import MovementType, StockMovement
+from app.suppliers import Supplier, normalize_supplier_code
 
 
 class DuplicateReferenceError(ValueError):
@@ -53,6 +54,15 @@ class SQLiteStore:
 
                 CREATE INDEX IF NOT EXISTS idx_stock_movements_sku
                 ON stock_movements (sku, occurred_at);
+
+                CREATE TABLE IF NOT EXISTS suppliers (
+                    code TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    email TEXT,
+                    phone TEXT,
+                    active INTEGER NOT NULL CHECK (active IN (0, 1)),
+                    CHECK (email IS NOT NULL OR phone IS NOT NULL)
+                );
                 """
             )
 
@@ -103,6 +113,58 @@ class SQLiteStore:
                 name=row["name"],
                 category=row["category"],
                 selling_price=Decimal(row["selling_price"]),
+                active=bool(row["active"]),
+            )
+            for row in rows
+        ]
+
+    def add_supplier(self, supplier: Supplier) -> None:
+        with self.connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO suppliers (code, name, email, phone, active)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    supplier.code,
+                    supplier.name,
+                    supplier.email,
+                    supplier.phone,
+                    int(supplier.active),
+                ),
+            )
+
+    def get_supplier(self, code: str) -> Supplier | None:
+        with self.connection() as connection:
+            row = connection.execute(
+                """SELECT code, name, email, phone, active FROM suppliers WHERE code = ?""",
+                (normalize_supplier_code(code),),
+            ).fetchone()
+        if row is None:
+            return None
+        return Supplier(
+            code=row["code"],
+            name=row["name"],
+            email=row["email"],
+            phone=row["phone"],
+            active=bool(row["active"]),
+        )
+
+    def list_suppliers(self, *, active_only: bool = False) -> list[Supplier]:
+        query = "SELECT code, name, email, phone, active FROM suppliers"
+        parameters: tuple[int, ...] = ()
+        if active_only:
+            query += " WHERE active = ?"
+            parameters = (1,)
+        query += " ORDER BY name, code"
+        with self.connection() as connection:
+            rows = connection.execute(query, parameters).fetchall()
+        return [
+            Supplier(
+                code=row["code"],
+                name=row["name"],
+                email=row["email"],
+                phone=row["phone"],
                 active=bool(row["active"]),
             )
             for row in rows
