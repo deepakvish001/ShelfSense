@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 
@@ -9,7 +9,7 @@ class StockBatch:
     quantity: int
     reorder_level: int
     expires_on: date | None = None
-    unit_cost: Decimal = Decimal("0")
+    unit_cost: Decimal = Decimal(0)
 
     def __post_init__(self) -> None:
         if not self.sku.strip():
@@ -27,5 +27,5 @@ class StockBatch:
             raise ValueError("days cannot be negative")
         if self.expires_on is None:
             return False
-        anchor = today or date.today()
+        anchor = today or datetime.now(UTC).date()
         return anchor <= self.expires_on <= date.fromordinal(anchor.toordinal() + days)
