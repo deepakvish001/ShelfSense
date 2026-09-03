@@ -24,8 +24,8 @@ def test_product_survives_repository_reopen(store: SQLiteStore) -> None:
 
 
 def test_active_product_filter_excludes_inactive_records(store: SQLiteStore) -> None:
-    store.add_product(Product("SOAP", "Soap", "Care", Decimal("35")))
-    store.add_product(Product("OLD", "Legacy", "Care", Decimal("20"), active=False))
+    store.add_product(Product("SOAP", "Soap", "Care", Decimal(35)))
+    store.add_product(Product("OLD", "Legacy", "Care", Decimal(20), active=False))
     assert [product.sku for product in store.list_products(active_only=True)] == ["SOAP"]
 
 
