@@ -7,6 +7,7 @@ from app.catalog_api import create_catalogue_router
 from app.inventory import InventoryLedger
 from app.persistent_inventory import PersistentInventory
 from app.store import SQLiteStore
+from app.suppliers_api import create_suppliers_router
 
 
 def create_app(
@@ -19,6 +20,7 @@ def create_app(
     inventory = ledger or PersistentInventory(repository)
     application.include_router(create_inventory_router(inventory))
     application.include_router(create_catalogue_router(repository))
+    application.include_router(create_suppliers_router(repository))
 
     @application.get("/healthz", tags=["system"])
     def health() -> dict[str, str]:
