@@ -137,6 +137,14 @@ class SQLiteStore:
             ).fetchone()
         return int(row["quantity"])
 
+    def stock_levels(self) -> dict[str, int]:
+        with self.connection() as connection:
+            rows = connection.execute(
+                """SELECT sku, SUM(quantity_delta) AS quantity
+                FROM stock_movements GROUP BY sku ORDER BY sku"""
+            ).fetchall()
+        return {row["sku"]: int(row["quantity"]) for row in rows}
+
     def list_movements(self, sku: str) -> list[StockMovement]:
         with self.connection() as connection:
             rows = connection.execute(

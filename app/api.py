@@ -1,7 +1,19 @@
+from collections.abc import Mapping
+from typing import Protocol
+
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
-from app.inventory import InventoryLedger, StockMovement
+from app.inventory import StockMovement
+
+
+class InventoryService(Protocol):
+    @property
+    def quantities(self) -> Mapping[str, int]: ...
+
+    def receive(self, *, reference: str, sku: str, quantity: int) -> StockMovement: ...
+
+    def issue(self, *, reference: str, sku: str, quantity: int) -> StockMovement: ...
 
 
 class StockCommand(BaseModel):
@@ -28,7 +40,7 @@ def movement_response(movement: StockMovement) -> MovementResponse:
     )
 
 
-def create_inventory_router(ledger: InventoryLedger) -> APIRouter:
+def create_inventory_router(ledger: InventoryService) -> APIRouter:
     router = APIRouter(prefix="/api/v1/inventory", tags=["inventory"])
 
     @router.post("/receipts", response_model=MovementResponse, status_code=status.HTTP_201_CREATED)

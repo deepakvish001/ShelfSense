@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from app.api import create_inventory_router
 from app.catalog_api import create_catalogue_router
 from app.inventory import InventoryLedger
+from app.persistent_inventory import PersistentInventory
 from app.store import SQLiteStore
 
 
@@ -15,7 +16,8 @@ def create_app(
     repository = store or SQLiteStore(os.getenv("DATABASE_PATH", "shelfsense.db"))
     repository.initialize()
     application = FastAPI(title="ShelfSense API", version="0.1.0")
-    application.include_router(create_inventory_router(ledger or InventoryLedger()))
+    inventory = ledger or PersistentInventory(repository)
+    application.include_router(create_inventory_router(inventory))
     application.include_router(create_catalogue_router(repository))
 
     @application.get("/healthz", tags=["system"])
