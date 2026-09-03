@@ -1,0 +1,1 @@
+"""ShelfSense application package."""
