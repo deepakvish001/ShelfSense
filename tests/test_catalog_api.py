@@ -10,9 +10,12 @@ from app.store import SQLiteStore
 
 
 @pytest.fixture
-def api(tmp_path) -> TestClient:
+def api(tmp_path, authenticator, admin_headers) -> TestClient:
     store = SQLiteStore(tmp_path / "catalogue.db")
-    return TestClient(create_app(InventoryLedger(), store))
+    return TestClient(
+        create_app(InventoryLedger(), store, authenticator),
+        headers=admin_headers,
+    )
 
 
 def test_create_and_read_product(api: TestClient) -> None:
@@ -44,12 +47,20 @@ def test_duplicate_sku_returns_conflict(api: TestClient) -> None:
     assert response.status_code == 409
 
 
-def test_active_filter_hides_inactive_products(api: TestClient, tmp_path) -> None:
+def test_active_filter_hides_inactive_products(
+    api: TestClient,
+    tmp_path,
+    authenticator,
+    admin_headers,
+) -> None:
     store = SQLiteStore(tmp_path / "filter.db")
     store.initialize()
     store.add_product(Product("LIVE", "Live", "Demo", Decimal(1)))
     store.add_product(Product("OLD", "Old", "Demo", Decimal(1), active=False))
-    filtered_api = TestClient(create_app(InventoryLedger(), store))
+    filtered_api = TestClient(
+        create_app(InventoryLedger(), store, authenticator),
+        headers=admin_headers,
+    )
     response = filtered_api.get("/api/v1/products?active_only=true")
     assert [product["sku"] for product in response.json()] == ["LIVE"]
 
