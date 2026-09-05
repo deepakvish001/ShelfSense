@@ -1,0 +1,22 @@
+services:
+  api:
+    build:
+      context: .
+    environment:
+      APP_ENV: production
+      API_KEYS: ${SHELFSENSE_API_KEYS:?Set SHELFSENSE_API_KEYS}
+      ALLOWED_ORIGINS: ${SHELFSENSE_ALLOWED_ORIGINS:-}
+      DATABASE_PATH: /data/shelfsense.db
+    ports:
+      - "8000:8000"
+    volumes:
+      - shelfsense-data:/data
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+
+volumes:
+  shelfsense-data:
