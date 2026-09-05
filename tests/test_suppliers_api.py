@@ -7,9 +7,25 @@ from app.store import SQLiteStore
 
 
 @pytest.fixture
-def api(tmp_path) -> TestClient:
+def api(tmp_path, authenticator, admin_headers) -> TestClient:
     store = SQLiteStore(tmp_path / "suppliers.db")
-    return TestClient(create_app(InventoryLedger(), store))
+    return TestClient(
+        create_app(InventoryLedger(), store, authenticator),
+        headers=admin_headers,
+    )
+
+
+def test_operator_cannot_create_supplier(tmp_path, authenticator) -> None:
+    store = SQLiteStore(tmp_path / "operator.db")
+    api = TestClient(
+        create_app(InventoryLedger(), store, authenticator),
+        headers={"X-API-Key": "operator-key"},
+    )
+    response = api.post(
+        "/api/v1/suppliers",
+        json={"code": "LOCAL", "name": "Local", "phone": "+91 99999 99999"},
+    )
+    assert response.status_code == 403
 
 
 def test_create_and_read_supplier(api: TestClient) -> None:
