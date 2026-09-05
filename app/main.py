@@ -24,7 +24,7 @@ def create_app(
     repository = store or SQLiteStore(configuration.database_path)
     repository.initialize()
     auth = authenticator or APIKeyAuthenticator.from_environment()
-    application = FastAPI(title="ShelfSense API", version="0.1.0")
+    application = FastAPI(title="ShelfSense API", version="1.0.0")
     application.add_middleware(
         OperationalHeadersMiddleware,
         production=configuration.environment is Environment.PRODUCTION,
