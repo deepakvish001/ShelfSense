@@ -1,10 +1,12 @@
 import sqlite3
 from decimal import Decimal
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
-from app.auth import APIKeyAuthenticator, Role
+from app.audit import create_audit_event
+from app.auth import APIKeyAuthenticator, Principal, Role
 from app.catalog import Product
 from app.store import SQLiteStore
 
@@ -42,9 +44,14 @@ def create_catalogue_router(store: SQLiteStore, authenticator: APIKeyAuthenticat
         "",
         response_model=ProductResponse,
         status_code=status.HTTP_201_CREATED,
-        dependencies=[Depends(authenticator.require(Role.OPERATOR, Role.ADMIN))],
     )
-    def create_product(command: ProductCreate) -> ProductResponse:
+    def create_product(
+        command: ProductCreate,
+        principal: Annotated[
+            Principal,
+            Depends(authenticator.require(Role.OPERATOR, Role.ADMIN)),
+        ],
+    ) -> ProductResponse:
         try:
             product = Product(**command.model_dump())
             store.add_product(product)
@@ -58,6 +65,14 @@ def create_catalogue_router(store: SQLiteStore, authenticator: APIKeyAuthenticat
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=str(error),
             ) from error
+        store.add_audit_event(
+            create_audit_event(
+                principal,
+                action="product.created",
+                resource=product.sku,
+                details={"name": product.name, "category": product.category},
+            )
+        )
         return product_response(product)
 
     @router.get(
