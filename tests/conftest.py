@@ -1,6 +1,10 @@
+import os
+
 import pytest
 
 from app.auth import APIKeyAuthenticator, Principal, Role
+
+os.environ.setdefault("API_KEYS", "test-bootstrap-key:admin:test-bootstrap")
 
 
 @pytest.fixture
