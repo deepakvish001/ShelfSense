@@ -3,6 +3,7 @@ import os
 from fastapi import FastAPI
 
 from app.api import create_inventory_router
+from app.audit_api import create_audit_router
 from app.auth import APIKeyAuthenticator
 from app.catalog_api import create_catalogue_router
 from app.inventory import InventoryLedger
@@ -21,9 +22,10 @@ def create_app(
     auth = authenticator or APIKeyAuthenticator.from_environment()
     application = FastAPI(title="ShelfSense API", version="0.1.0")
     inventory = ledger or PersistentInventory(repository)
-    application.include_router(create_inventory_router(inventory, auth))
+    application.include_router(create_inventory_router(inventory, auth, repository))
     application.include_router(create_catalogue_router(repository, auth))
     application.include_router(create_suppliers_router(repository, auth))
+    application.include_router(create_audit_router(repository, auth))
 
     @application.get("/healthz", tags=["system"])
     def health() -> dict[str, str]:
