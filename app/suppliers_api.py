@@ -1,8 +1,9 @@
 import sqlite3
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
+from app.auth import APIKeyAuthenticator, Role
 from app.store import SQLiteStore
 from app.suppliers import Supplier
 
@@ -33,10 +34,15 @@ def supplier_response(supplier: Supplier) -> SupplierResponse:
     )
 
 
-def create_suppliers_router(store: SQLiteStore) -> APIRouter:
+def create_suppliers_router(store: SQLiteStore, authenticator: APIKeyAuthenticator) -> APIRouter:
     router = APIRouter(prefix="/api/v1/suppliers", tags=["suppliers"])
 
-    @router.post("", response_model=SupplierResponse, status_code=status.HTTP_201_CREATED)
+    @router.post(
+        "",
+        response_model=SupplierResponse,
+        status_code=status.HTTP_201_CREATED,
+        dependencies=[Depends(authenticator.require(Role.ADMIN))],
+    )
     def create_supplier(command: SupplierCreate) -> SupplierResponse:
         try:
             supplier = Supplier(**command.model_dump())
@@ -53,14 +59,22 @@ def create_suppliers_router(store: SQLiteStore) -> APIRouter:
             ) from error
         return supplier_response(supplier)
 
-    @router.get("", response_model=list[SupplierResponse])
+    @router.get(
+        "",
+        response_model=list[SupplierResponse],
+        dependencies=[Depends(authenticator.require(Role.VIEWER, Role.OPERATOR, Role.ADMIN))],
+    )
     def list_suppliers(active_only: bool = Query(default=False)) -> list[SupplierResponse]:
         return [
             supplier_response(supplier)
             for supplier in store.list_suppliers(active_only=active_only)
         ]
 
-    @router.get("/{code}", response_model=SupplierResponse)
+    @router.get(
+        "/{code}",
+        response_model=SupplierResponse,
+        dependencies=[Depends(authenticator.require(Role.VIEWER, Role.OPERATOR, Role.ADMIN))],
+    )
     def get_supplier(code: str) -> SupplierResponse:
         supplier = store.get_supplier(code)
         if supplier is None:
