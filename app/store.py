@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -5,6 +6,7 @@ from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
+from app.audit import AuditEvent
 from app.catalog import Product, normalize_sku
 from app.inventory import MovementType, StockMovement
 from app.suppliers import Supplier, normalize_supplier_code
@@ -63,6 +65,19 @@ class SQLiteStore:
                     active INTEGER NOT NULL CHECK (active IN (0, 1)),
                     CHECK (email IS NOT NULL OR phone IS NOT NULL)
                 );
+
+                CREATE TABLE IF NOT EXISTS audit_events (
+                    event_id TEXT PRIMARY KEY,
+                    actor TEXT NOT NULL,
+                    role TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    resource TEXT NOT NULL,
+                    details_json TEXT NOT NULL,
+                    occurred_at TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_audit_events_occurred_at
+                ON audit_events (occurred_at DESC);
                 """
             )
 
@@ -220,6 +235,47 @@ class SQLiteStore:
                 sku=row["sku"],
                 movement_type=MovementType(row["movement_type"]),
                 quantity_delta=row["quantity_delta"],
+                occurred_at=datetime.fromisoformat(row["occurred_at"]),
+            )
+            for row in rows
+        ]
+
+    def add_audit_event(self, event: AuditEvent) -> None:
+        with self.connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO audit_events
+                    (event_id, actor, role, action, resource, details_json, occurred_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    event.event_id,
+                    event.actor,
+                    event.role,
+                    event.action,
+                    event.resource,
+                    json.dumps(event.details, sort_keys=True, separators=(",", ":")),
+                    event.occurred_at.isoformat(),
+                ),
+            )
+
+    def list_audit_events(self, *, limit: int = 100) -> list[AuditEvent]:
+        if not 1 <= limit <= 500:
+            raise ValueError("audit limit must be between 1 and 500")
+        with self.connection() as connection:
+            rows = connection.execute(
+                """SELECT event_id, actor, role, action, resource, details_json, occurred_at
+                FROM audit_events ORDER BY occurred_at DESC, event_id DESC LIMIT ?""",
+                (limit,),
+            ).fetchall()
+        return [
+            AuditEvent(
+                event_id=row["event_id"],
+                actor=row["actor"],
+                role=row["role"],
+                action=row["action"],
+                resource=row["resource"],
+                details=json.loads(row["details_json"]),
                 occurred_at=datetime.fromisoformat(row["occurred_at"]),
             )
             for row in rows

@@ -1,9 +1,11 @@
 import sqlite3
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
-from app.auth import APIKeyAuthenticator, Role
+from app.audit import create_audit_event
+from app.auth import APIKeyAuthenticator, Principal, Role
 from app.store import SQLiteStore
 from app.suppliers import Supplier
 
@@ -41,9 +43,11 @@ def create_suppliers_router(store: SQLiteStore, authenticator: APIKeyAuthenticat
         "",
         response_model=SupplierResponse,
         status_code=status.HTTP_201_CREATED,
-        dependencies=[Depends(authenticator.require(Role.ADMIN))],
     )
-    def create_supplier(command: SupplierCreate) -> SupplierResponse:
+    def create_supplier(
+        command: SupplierCreate,
+        principal: Annotated[Principal, Depends(authenticator.require(Role.ADMIN))],
+    ) -> SupplierResponse:
         try:
             supplier = Supplier(**command.model_dump())
             store.add_supplier(supplier)
@@ -57,6 +61,14 @@ def create_suppliers_router(store: SQLiteStore, authenticator: APIKeyAuthenticat
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=str(error),
             ) from error
+        store.add_audit_event(
+            create_audit_event(
+                principal,
+                action="supplier.created",
+                resource=supplier.code,
+                details={"name": supplier.name},
+            )
+        )
         return supplier_response(supplier)
 
     @router.get(

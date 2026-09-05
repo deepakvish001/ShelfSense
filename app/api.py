@@ -1,11 +1,13 @@
 from collections.abc import Mapping
-from typing import Protocol
+from typing import Annotated, Protocol
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from app.auth import APIKeyAuthenticator, Role
+from app.audit import create_audit_event
+from app.auth import APIKeyAuthenticator, Principal, Role
 from app.inventory import StockMovement
+from app.store import SQLiteStore
 
 
 class InventoryService(Protocol):
@@ -44,6 +46,7 @@ def movement_response(movement: StockMovement) -> MovementResponse:
 def create_inventory_router(
     ledger: InventoryService,
     authenticator: APIKeyAuthenticator,
+    audit_store: SQLiteStore,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/v1/inventory", tags=["inventory"])
 
@@ -51,26 +54,52 @@ def create_inventory_router(
         "/receipts",
         response_model=MovementResponse,
         status_code=status.HTTP_201_CREATED,
-        dependencies=[Depends(authenticator.require(Role.OPERATOR, Role.ADMIN))],
     )
-    def receive_stock(command: StockCommand) -> MovementResponse:
+    def receive_stock(
+        command: StockCommand,
+        principal: Annotated[
+            Principal,
+            Depends(authenticator.require(Role.OPERATOR, Role.ADMIN)),
+        ],
+    ) -> MovementResponse:
         try:
             movement = ledger.receive(**command.model_dump())
         except ValueError as error:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+        audit_store.add_audit_event(
+            create_audit_event(
+                principal,
+                action="inventory.received",
+                resource=movement.sku,
+                details={"reference": movement.reference, "quantity": movement.quantity_delta},
+            )
+        )
         return movement_response(movement)
 
     @router.post(
         "/issues",
         response_model=MovementResponse,
         status_code=status.HTTP_201_CREATED,
-        dependencies=[Depends(authenticator.require(Role.OPERATOR, Role.ADMIN))],
     )
-    def issue_stock(command: StockCommand) -> MovementResponse:
+    def issue_stock(
+        command: StockCommand,
+        principal: Annotated[
+            Principal,
+            Depends(authenticator.require(Role.OPERATOR, Role.ADMIN)),
+        ],
+    ) -> MovementResponse:
         try:
             movement = ledger.issue(**command.model_dump())
         except ValueError as error:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+        audit_store.add_audit_event(
+            create_audit_event(
+                principal,
+                action="inventory.issued",
+                resource=movement.sku,
+                details={"reference": movement.reference, "quantity": -movement.quantity_delta},
+            )
+        )
         return movement_response(movement)
 
     @router.get(
