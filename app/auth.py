@@ -30,11 +30,16 @@ class APIKeyAuthenticator:
 
     @classmethod
     def from_environment(cls) -> "APIKeyAuthenticator":
-        raw_keys = os.getenv("API_KEYS", "local-development-key:admin:local-admin")
+        raw_keys = os.getenv("API_KEYS")
+        if not raw_keys:
+            raise RuntimeError("API_KEYS must be configured")
         principals: dict[str, Principal] = {}
-        for item in raw_keys.split(","):
-            key, role, subject = (part.strip() for part in item.split(":", maxsplit=2))
-            principals[key] = Principal(subject=subject, role=Role(role))
+        try:
+            for item in raw_keys.split(","):
+                key, role, subject = (part.strip() for part in item.split(":", maxsplit=2))
+                principals[key] = Principal(subject=subject, role=Role(role))
+        except (ValueError, TypeError) as error:
+            raise RuntimeError("API_KEYS must use key:role:subject entries") from error
         return cls(principals)
 
     def authenticate(self, supplied_key: str | None) -> Principal:
