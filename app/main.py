@@ -8,6 +8,7 @@ from app.auth import APIKeyAuthenticator
 from app.catalog_api import create_catalogue_router
 from app.inventory import InventoryLedger
 from app.persistent_inventory import PersistentInventory
+from app.reporting_api import create_reporting_router
 from app.store import SQLiteStore
 from app.suppliers_api import create_suppliers_router
 
@@ -26,6 +27,7 @@ def create_app(
     application.include_router(create_catalogue_router(repository, auth))
     application.include_router(create_suppliers_router(repository, auth))
     application.include_router(create_audit_router(repository, auth))
+    application.include_router(create_reporting_router(repository, auth))
 
     @application.get("/healthz", tags=["system"])
     def health() -> dict[str, str]:
