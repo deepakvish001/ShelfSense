@@ -81,6 +81,13 @@ class SQLiteStore:
                 """
             )
 
+    def ping(self) -> bool:
+        try:
+            with self.connection() as connection:
+                return connection.execute("SELECT 1").fetchone()[0] == 1
+        except sqlite3.Error:
+            return False
+
     def add_product(self, product: Product) -> None:
         with self.connection() as connection:
             connection.execute(
