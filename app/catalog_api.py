@@ -1,9 +1,10 @@
 import sqlite3
 from decimal import Decimal
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
+from app.auth import APIKeyAuthenticator, Role
 from app.catalog import Product
 from app.store import SQLiteStore
 
@@ -34,10 +35,15 @@ def product_response(product: Product) -> ProductResponse:
     )
 
 
-def create_catalogue_router(store: SQLiteStore) -> APIRouter:
+def create_catalogue_router(store: SQLiteStore, authenticator: APIKeyAuthenticator) -> APIRouter:
     router = APIRouter(prefix="/api/v1/products", tags=["catalogue"])
 
-    @router.post("", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
+    @router.post(
+        "",
+        response_model=ProductResponse,
+        status_code=status.HTTP_201_CREATED,
+        dependencies=[Depends(authenticator.require(Role.OPERATOR, Role.ADMIN))],
+    )
     def create_product(command: ProductCreate) -> ProductResponse:
         try:
             product = Product(**command.model_dump())
@@ -54,14 +60,22 @@ def create_catalogue_router(store: SQLiteStore) -> APIRouter:
             ) from error
         return product_response(product)
 
-    @router.get("", response_model=list[ProductResponse])
+    @router.get(
+        "",
+        response_model=list[ProductResponse],
+        dependencies=[Depends(authenticator.require(Role.VIEWER, Role.OPERATOR, Role.ADMIN))],
+    )
     def list_products(active_only: bool = Query(default=False)) -> list[ProductResponse]:
         return [
             product_response(product)
             for product in store.list_products(active_only=active_only)
         ]
 
-    @router.get("/{sku}", response_model=ProductResponse)
+    @router.get(
+        "/{sku}",
+        response_model=ProductResponse,
+        dependencies=[Depends(authenticator.require(Role.VIEWER, Role.OPERATOR, Role.ADMIN))],
+    )
     def get_product(sku: str) -> ProductResponse:
         product = store.get_product(sku)
         if product is None:
