@@ -1,7 +1,9 @@
 [project]
 name = "shelfsense"
-version = "0.1.0"
+version = "1.0.0"
 description = "Inventory intelligence API for small retailers"
+readme = "README.md"
+license = "MIT"
 requires-python = ">=3.12"
 dependencies = ["fastapi>=0.115,<1", "uvicorn[standard]>=0.30,<1"]
 
