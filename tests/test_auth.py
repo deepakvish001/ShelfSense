@@ -26,3 +26,9 @@ def test_environment_parser_supports_multiple_roles(monkeypatch) -> None:
     authenticator = APIKeyAuthenticator.from_environment()
     assert authenticator.authenticate("read").role is Role.VIEWER
     assert authenticator.authenticate("write").role is Role.OPERATOR
+
+
+def test_environment_parser_fails_when_keys_are_missing(monkeypatch) -> None:
+    monkeypatch.delenv("API_KEYS", raising=False)
+    with pytest.raises(RuntimeError, match="must be configured"):
+        APIKeyAuthenticator.from_environment()
